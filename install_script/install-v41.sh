@@ -77,10 +77,20 @@ validate_number() {
     local input="$1"
     local min="$2"
     local max="$3"
+
+    # Check if input is empty
+    if [[ -z "$input" ]]; then
+        echo "${RED}✗ Input cannot be empty${NC}"
+        return 1
+    fi
+
+    # Check if input is a valid number
     if [[ ! "$input" =~ ^[0-9]+$ ]]; then
         echo "${RED}✗ Must be a number${NC}"
         return 1
     fi
+
+    # Now safe to do numeric comparison
     if [ "$input" -lt "$min" ] || [ "$input" -gt "$max" ]; then
         echo "${RED}✗ Must be between $min and $max${NC}"
         return 1
@@ -285,7 +295,7 @@ echo ""
 
 while true; do
     read -p "Select disk number (1-${#DISK_LIST[@]}): " DISK_NUM
-    if validate_number "$DISK_NUM" 1 "${#DISK_LIST[@]}" 2>/dev/null; then
+    if validate_number "$DISK_NUM" 1 "${#DISK_LIST[@]}"; then
         SELECTED_LINE="${DISK_LIST[$((DISK_NUM-1))]}"
         DISK_NAME=$(echo "$SELECTED_LINE" | awk '{print $1}')
         DISK="/dev/$DISK_NAME"
