@@ -3,7 +3,7 @@ set -e
 set -o pipefail
 
 # ==============================================================================
-#  ARCH LINUX INSTALLER V33 (Clean Core, Spinner UI, No GUI, Fix Syntax)
+#  ARCH LINUX INSTALLER V34 (Perfect Console: ZSH Configured + AMD Drivers)
 # ==============================================================================
 
 # --- COLORS ---
@@ -46,35 +46,12 @@ box() {
     echo ""
 }
 
-# ANIMATED SPINNER (From V30)
 run_task() {
     local message="$1"
     local command="$2"
-    
-    # Print message without newline
     printf "  ${WHITE}%-50s${NC}" "$message"
     
-    # Run command in background, redirect output to log
-    eval "$command" >> "$LOG" 2>&1 &
-    local pid=$!
-    
-    local delay=0.1
-    local spinstr='|/-\'
-    
-    # Spin while process is running
-    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-        local temp=${spinstr#?}
-        printf " [${CYAN}%c${NC}]" "$spinstr"
-        local spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b"
-    done
-    
-    # Check exit status
-    wait $pid
-    local exit_code=$?
-    
-    if [ $exit_code -eq 0 ]; then
+    if eval "$command" >> "$LOG" 2>&1; then
         printf " [${GREEN}OK${NC}]\n"
     else
         printf " [${RED}FAIL${NC}]\n"
@@ -210,13 +187,12 @@ box "SYSTEM INSTALLATION" "$GREEN"
 center "Optimized for Speed. Please wait." "$GRAY"
 echo ""
 
-# Standard Kernel
+# Standard Kernel & Core
 PKGS="base base-devel linux linux-headers linux-firmware lvm2 grub efibootmgr networkmanager git sudo man-db ufw"
-# CLI Tools (ZSH, NeoVim, etc.)
+# CLI Tools
 PKGS="$PKGS zsh zsh-autosuggestions zsh-syntax-highlighting neovim ripgrep fd npm docker"
-# Security
-PKGS="$PKGS apparmor polkit amd-ucode"
-# NOTE: HYPRLAND & GUI REMOVED as requested
+# Security & Hardware (AMD DRIVERS ADDED HERE)
+PKGS="$PKGS apparmor polkit amd-ucode mesa vulkan-radeon libva-mesa-driver"
 
 run_task "Installing Packages" "pacstrap /mnt $PKGS"
 run_task "Generating fstab" "genfstab -U /mnt >> /mnt/etc/fstab"
@@ -230,13 +206,12 @@ else
     MODULES_CONFIG="MODULES=(amdgpu)" 
 fi
 
-# --- GENERATE CONFIG SCRIPT (Fixes Syntax Error) ---
-# We write the chroot commands to a file first to avoid Heredoc issues in run_task
+# --- GENERATE CONFIG SCRIPT (Internal) ---
 cat <<EO_CONFIG > /mnt/setup_internal.sh
 #!/bin/bash
 set -e
 
-# 1. Optimize Pacman (10 Threads)
+# 1. Optimize Pacman
 sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 10/' /etc/pacman.conf
 grep -q "ILoveCandy" /etc/pacman.conf || sed -i '/ParallelDownloads/a ILoveCandy' /etc/pacman.conf
 
@@ -257,6 +232,25 @@ mkinitcpio -P >/dev/null 2>&1
 # 4. User & Shell
 useradd -m -G wheel,video,audio,storage,docker -s /usr/bin/zsh $USERNAME
 sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+
+# --- ZSH CONFIGURATION (FIX FOR ARCH% MENU) ---
+cat <<ZSHRC > /home/$USERNAME/.zshrc
+# Plugins
+source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# Basic Prompt (User@Host in Color)
+autoload -U colors && colors
+PROMPT="%{\$fg[red]%}%n%{\$reset_color%}@%{\$fg[blue]%}%m %{\$fg[yellow]%}%~ %{\$reset_color%}%% "
+
+# History & Behavior
+HISTFILE=~/.histfile
+HISTSIZE=1000
+SAVEHIST=1000
+setopt autocd
+bindkey -v
+ZSHRC
+chown $USERNAME:$USERNAME /home/$USERNAME/.zshrc
 
 # 5. Security Hardening
 mkdir -p /etc/systemd/resolved.conf.d
@@ -322,6 +316,7 @@ echo ""
 summary_item "Hostname" "$HOSTNAME"
 summary_item "User" "$USERNAME (ZSH)"
 summary_item "Kernel" "Standard Linux"
+summary_item "Drivers" "AMD (Mesa/Vulkan)"
 summary_item "Disk" "$DISK"
 summary_item "Storage" "Root: ${ROOT_NUM}G | Swap: ${SWAP_NUM}G"
 summary_item "Security" "UFW + AppArmor + DoT"
