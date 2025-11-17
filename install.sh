@@ -3,7 +3,7 @@ set -e
 set -o pipefail
 
 # ==============================================================================
-#  ARCH LINUX INSTALLER V34 (Perfect Console: ZSH Configured + AMD Drivers)
+#  ARCH LINUX INSTALLER V36 (Cinema Mode, ZSH Fix, Clean UI)
 # ==============================================================================
 
 # --- COLORS ---
@@ -46,6 +46,84 @@ box() {
     echo ""
 }
 
+# --- CINEMA MODE (QUOTES & SPINNER) ---
+run_task_cinema() {
+    local message="$1"
+    local command="$2"
+    
+    # Quotes Array
+    QUOTES=(
+        "Wake up, Neo... (The Matrix)"
+        "I'll be back. (Terminator)"
+        "It's dangerous to go alone! Take this. (Zelda)"
+        "May the Force be with you. (Star Wars)"
+        "Winter is coming. (Game of Thrones)"
+        "See you space cowboy... (Cowboy Bebop)"
+        "The cake is a lie. (Portal)"
+        "Protocol 3: Protect the Pilot. (Titanfall 2)"
+        "Do. Or do not. There is no try. (Yoda)"
+        "Loading reality... please wait."
+        "Compiling the matrix..."
+        "Hack the Planet! (Hackers)"
+        "A wizard is never late. (LOTR)"
+        "Installing Arch is cheaper than therapy."
+    )
+    
+    # Run command in background
+    eval "$command" >> "$LOG" 2>&1 &
+    local pid=$!
+    
+    local delay=0.1
+    local quote_delay=0
+    local spinstr='|/-\'
+    local quote_index=0
+    
+    # Hide Cursor
+    tput civis
+    
+    printf "  ${WHITE}%-30s${NC}" "$message"
+    
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        # Spinner Logic
+        local temp=${spinstr#?}
+        printf " [${CYAN}%c${NC}] " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        
+        # Quote Logic (Change every 50 cycles / 5 seconds)
+        if [ $quote_delay -eq 0 ]; then
+            quote_index=$((RANDOM % ${#QUOTES[@]}))
+            # Clear line from cursor to end
+            tput el
+            printf "${GRAY}:: %s${NC}" "${QUOTES[$quote_index]}"
+            quote_delay=50
+        fi
+        ((quote_delay--))
+        
+        sleep $delay
+        # Move cursor back to start of spinner/quote area (matches the printf above)
+        printf "\r  ${WHITE}%-30s${NC}" "$message"
+    done
+    
+    # Restore Cursor
+    tput cnorm
+    
+    wait $pid
+    local exit_code=$?
+    
+    # Clear the quote line for clean status
+    tput el 
+    
+    if [ $exit_code -eq 0 ]; then
+        printf " [${GREEN}OK${NC}]\n"
+    else
+        printf " [${RED}FAIL${NC}]\n"
+        echo -e "${RED}!!! ERROR DETECTED !!! Last lines of log:${NC}"
+        tail -n 10 "$LOG"
+        exit 1
+    fi
+}
+
+# Standard Task Runner
 run_task() {
     local message="$1"
     local command="$2"
@@ -55,9 +133,7 @@ run_task() {
         printf " [${GREEN}OK${NC}]\n"
     else
         printf " [${RED}FAIL${NC}]\n"
-        echo ""
-        echo -e "${RED}!!! ERROR DETECTED !!! Check details below:${NC}"
-        tail -n 10 "$LOG"
+        echo -e "${RED}Log: $LOG${NC}"
         exit 1
     fi
 }
@@ -71,6 +147,7 @@ summary_item() {
 
 cleanup() {
     if [ $? -ne 0 ]; then
+        tput cnorm # Restore cursor if crashed
         echo ""
         center "!!! SCRIPT INTERRUPTED !!!" "$RED"
         echo -e "${GRAY}Log saved at: $LOG${NC}"
@@ -182,19 +259,18 @@ run_task "Mounting Boot" "mkdir -p /mnt/boot && mount $PART1 /mnt/boot"
 run_task "Mounting Swap" "swapon /dev/mapper/$VG_NAME-swap"
 run_task "Mounting Data" "mkdir -p /mnt/data && mount -o noexec /dev/mapper/$VG_NAME-data /mnt/data"
 
-# --- 7. INSTALLATION ---
+# --- 7. INSTALLATION (CINEMA MODE) ---
 box "SYSTEM INSTALLATION" "$GREEN"
-center "Optimized for Speed. Please wait." "$GRAY"
-echo ""
 
-# Standard Kernel & Core
+# Core
 PKGS="base base-devel linux linux-headers linux-firmware lvm2 grub efibootmgr networkmanager git sudo man-db ufw"
-# CLI Tools
+# Tools
 PKGS="$PKGS zsh zsh-autosuggestions zsh-syntax-highlighting neovim ripgrep fd npm docker"
-# Security & Hardware (AMD DRIVERS ADDED HERE)
+# Security & AMD
 PKGS="$PKGS apparmor polkit amd-ucode mesa vulkan-radeon libva-mesa-driver"
 
-run_task "Installing Packages" "pacstrap /mnt $PKGS"
+# USE NEW CINEMA FUNCTION HERE
+run_task_cinema "Installing Packages" "pacstrap /mnt $PKGS"
 run_task "Generating fstab" "genfstab -U /mnt >> /mnt/etc/fstab"
 
 # --- 8. INTERNAL CONFIGURATION ---
@@ -206,16 +282,16 @@ else
     MODULES_CONFIG="MODULES=(amdgpu)" 
 fi
 
-# --- GENERATE CONFIG SCRIPT (Internal) ---
+# --- GENERATE CONFIG SCRIPT ---
 cat <<EO_CONFIG > /mnt/setup_internal.sh
 #!/bin/bash
 set -e
 
-# 1. Optimize Pacman
+# Optimize Pacman
 sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 10/' /etc/pacman.conf
 grep -q "ILoveCandy" /etc/pacman.conf || sed -i '/ParallelDownloads/a ILoveCandy' /etc/pacman.conf
 
-# 2. Locale & Time
+# Locale & Time
 ln -sf /usr/share/zoneinfo/Europe/Vienna /etc/localtime
 hwclock --systohc
 echo "de_DE.UTF-8 UTF-8" > /etc/locale.gen
@@ -224,35 +300,31 @@ echo "LANG=de_DE.UTF-8" > /etc/locale.conf
 echo "KEYMAP=de-latin1" > /etc/vconsole.conf
 echo "$HOSTNAME" > /etc/hostname
 
-# 3. Initramfs
+# Initramfs
 sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf block encrypt lvm2 filesystems fsck)/' /etc/mkinitcpio.conf
 sed -i "s/^MODULES=.*/$MODULES_CONFIG/" /etc/mkinitcpio.conf
 mkinitcpio -P >/dev/null 2>&1
 
-# 4. User & Shell
+# User & Shell
 useradd -m -G wheel,video,audio,storage,docker -s /usr/bin/zsh $USERNAME
 sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-# --- ZSH CONFIGURATION (FIX FOR ARCH% MENU) ---
+# --- ZSH CONFIGURATION (SIMPLE & CLEAN) ---
 cat <<ZSHRC > /home/$USERNAME/.zshrc
 # Plugins
 source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
 source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-# Basic Prompt (User@Host in Color)
-autoload -U colors && colors
-PROMPT="%{\$fg[red]%}%n%{\$reset_color%}@%{\$fg[blue]%}%m %{\$fg[yellow]%}%~ %{\$reset_color%}%% "
-
-# History & Behavior
+# Standard Arch Prompt is fine, no custom PROMPT needed to avoid errors
 HISTFILE=~/.histfile
 HISTSIZE=1000
 SAVEHIST=1000
 setopt autocd
 bindkey -v
+alias ll='ls -la'
 ZSHRC
 chown $USERNAME:$USERNAME /home/$USERNAME/.zshrc
 
-# 5. Security Hardening
+# Security Hardening
 mkdir -p /etc/systemd/resolved.conf.d
 echo "[Resolve]" > /etc/systemd/resolved.conf.d/dns_over_tls.conf
 echo "DNS=9.9.9.9 149.112.112.112" >> /etc/systemd/resolved.conf.d/dns_over_tls.conf
@@ -261,10 +333,10 @@ echo "kernel.dmesg_restrict = 1" > /etc/sysctl.d/50-dmesg-restrict.conf
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 
-# 6. Flatpak
+# Flatpak
 flatpak remote-add --if-not-exists --system flathub https://flathub.org/repo/flathub.flatpakrepo || true
 
-# 7. Data Separation
+# Data Separation
 mkdir -p /data/Dokumente /data/Downloads /data/Bilder /data/Videos /data/Projects
 chown -R $USERNAME:$USERNAME /data
 rm -rf /home/$USERNAME/Downloads && ln -s /data/Downloads /home/$USERNAME/Downloads
@@ -274,18 +346,18 @@ rm -rf /home/$USERNAME/Videos    && ln -s /data/Videos    /home/$USERNAME/Videos
 ln -s /data/Projects /home/$USERNAME/Projects
 chown -h $USERNAME:$USERNAME /home/$USERNAME/Downloads /home/$USERNAME/Documents /home/$USERNAME/Pictures /home/$USERNAME/Videos /home/$USERNAME/Projects
 
-# 8. LazyVim Setup
+# LazyVim
 sudo -u $USERNAME mkdir -p /home/$USERNAME/.config
 sudo -u $USERNAME git clone https://github.com/LazyVim/starter /home/$USERNAME/.config/nvim >/dev/null 2>&1
 rm -rf /home/$USERNAME/.config/nvim/.git
 
-# 9. Bootloader
+# Bootloader
 UUID=\$(cryptsetup luksUUID $PART2)
 sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 quiet cryptdevice=UUID=\$UUID:$VG_NAME root=/dev/$VG_NAME/root apparmor=1 security=apparmor lsm=landlock,lockdown,yama,integrity,apparmor,bpf\"|" /etc/default/grub
 grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB >/dev/null 2>&1
 grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
 
-# 10. Services
+# Services
 systemctl enable NetworkManager
 systemctl enable apparmor
 systemctl enable ufw
@@ -294,8 +366,6 @@ systemctl enable systemd-resolved
 EO_CONFIG
 
 chmod +x /mnt/setup_internal.sh
-
-# Run the actual configuration via the spinner function
 run_task "Applying System Configuration" "arch-chroot /mnt /setup_internal.sh"
 rm /mnt/setup_internal.sh
 
@@ -316,7 +386,6 @@ echo ""
 summary_item "Hostname" "$HOSTNAME"
 summary_item "User" "$USERNAME (ZSH)"
 summary_item "Kernel" "Standard Linux"
-summary_item "Drivers" "AMD (Mesa/Vulkan)"
 summary_item "Disk" "$DISK"
 summary_item "Storage" "Root: ${ROOT_NUM}G | Swap: ${SWAP_NUM}G"
 summary_item "Security" "UFW + AppArmor + DoT"
@@ -324,5 +393,5 @@ summary_item "Interface" "Pure TTY (Console)"
 summary_item "Time Taken" "$((DURATION / 60))m $((DURATION % 60))s"
 echo ""
 line
-center "Reboot now. Enjoy your clean Arch system." "$CYAN"
+center "Reboot now. Enjoy your Clean Arch." "$CYAN"
 echo ""
