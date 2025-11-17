@@ -32,7 +32,7 @@ System construction details:
 | **Hardware** | AMD | Optimized for Ryzen & Radeon (Mesa/Vulkan/Microcode). |
 | **Boot** | UEFI / GRUB | Secure Boot ready, Silent Boot. |
 | **Disk** | LVM on LUKS | Full encryption with logical volumes (`vg0`). |
-| **System** | Arch Linux | Minimal Base Install via **[CALI Installer](./installer)**. |
+| **System** | Arch Linux | Minimal Base Install via **[CALI Installer](./install_script)**. |
 | **Interface** | TTY / ZSH | No Display Manager. Login via Console -> Hyprland. |
 | **Apps** | Flatpak / Docker | Strict separation of System and Applications. |
 
