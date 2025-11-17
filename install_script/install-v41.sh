@@ -109,7 +109,7 @@ validate_password_strength() {
 
     if [[ ! "$pass" =~ [A-Z] ]] || [[ ! "$pass" =~ [a-z] ]] || [[ ! "$pass" =~ [0-9] ]]; then
         echo "${YELLOW}⚠ Weak: Should contain uppercase, lowercase, and numbers${NC}"
-        read -p "Continue anyway? (y/n): " continue
+        read -r -p "Continue anyway? (y/n): " continue
         [[ "$continue" == "y" ]] || return 1
     fi
 
@@ -253,7 +253,7 @@ echo "  ${GRAY}•${NC} Wipe selected disk and create encrypted LVM"
 echo "  ${GRAY}•${NC} Install minimal Arch with security hardening"
 echo "  ${GRAY}•${NC} Configure persistent /data partition"
 echo ""
-read -p "Press ENTER to continue or Ctrl+C to abort..."
+read -r -p "Press ENTER to continue or Ctrl+C to abort..."
 
 # --- 1. INITIALIZATION ---
 box "1" "INITIALIZATION" "$CYAN"
@@ -293,8 +293,10 @@ for disk in "${DISK_LIST[@]}"; do
 done
 echo ""
 
+# Clear any stray input/variables
+unset DISK_NUM
 while true; do
-    read -p "Select disk number (1-${#DISK_LIST[@]}): " DISK_NUM
+    read -r -p "Select disk number (1-${#DISK_LIST[@]}): " DISK_NUM
     if validate_number "$DISK_NUM" 1 "${#DISK_LIST[@]}"; then
         SELECTED_LINE="${DISK_LIST[$((DISK_NUM-1))]}"
         DISK_NAME=$(echo "$SELECTED_LINE" | awk '{print $1}')
@@ -310,30 +312,33 @@ sleep 1
 
 # --- HOSTNAME ---
 box "2" "CONFIGURATION WIZARD - System Identity" "$MAGENTA"
+unset HOSTNAME
 while true; do
     echo ""
     center "Enter Hostname (e.g., 'archlinux', 'workstation'):" "$WHITE"
-    read -p "  > " HOSTNAME
+    read -r -p "  > " HOSTNAME
     validate_hostname "$HOSTNAME" && break
 done
 
 # --- USERNAME ---
+unset USERNAME
 while true; do
     echo ""
     center "Enter Username (lowercase, e.g., 'alice'):" "$WHITE"
-    read -p "  > " USERNAME
+    read -r -p "  > " USERNAME
     validate_username "$USERNAME" && break
 done
 
 # --- ROOT PASSWORD ---
 box "2" "CONFIGURATION WIZARD - Security" "$MAGENTA"
+unset ROOT_PASS ROOT_PASS2
 while true; do
     echo ""
     center "Set ROOT Password (min 12 chars, mixed case + numbers):" "$YELLOW"
-    read -s -p "  Password: " ROOT_PASS
+    read -r -s -p "  Password: " ROOT_PASS
     echo ""
     if validate_password_strength "$ROOT_PASS"; then
-        read -s -p "  Confirm:  " ROOT_PASS2
+        read -r -s -p "  Confirm:  " ROOT_PASS2
         echo ""
         if [ "$ROOT_PASS" == "$ROOT_PASS2" ]; then
             echo "${GREEN}✓ Root password set${NC}"
@@ -345,13 +350,14 @@ while true; do
 done
 
 # --- USER PASSWORD ---
+unset USER_PASS USER_PASS2
 while true; do
     echo ""
     center "Set USER Password for '$USERNAME':" "$YELLOW"
-    read -s -p "  Password: " USER_PASS
+    read -r -s -p "  Password: " USER_PASS
     echo ""
     if validate_password_strength "$USER_PASS"; then
-        read -s -p "  Confirm:  " USER_PASS2
+        read -r -s -p "  Confirm:  " USER_PASS2
         echo ""
         if [ "$USER_PASS" == "$USER_PASS2" ]; then
             echo "${GREEN}✓ User password set${NC}"
@@ -368,17 +374,19 @@ echo ""
 center "Disk Capacity: $DISK_SIZE" "$GRAY"
 echo ""
 
+unset SWAP_NUM
 while true; do
-    read -p "SWAP size in GB (recommended: 8-16): " SWAP_NUM
+    read -r -p "SWAP size in GB (recommended: 8-16): " SWAP_NUM
     validate_number "$SWAP_NUM" 1 128 && break
 done
 
+unset ROOT_NUM
 while true; do
-    read -p "ROOT size in GB (recommended: 60-100): " ROOT_NUM
+    read -r -p "ROOT size in GB (recommended: 60-100): " ROOT_NUM
     if validate_number "$ROOT_NUM" 20 500; then
         if [ "$ROOT_NUM" -lt 60 ]; then
             echo "${YELLOW}⚠ Warning: <60GB may be tight with updates${NC}"
-            read -p "Continue? (y/n): " cont
+            read -r -p "Continue? (y/n): " cont
             [[ "$cont" == "y" ]] && break
         else
             break
@@ -388,7 +396,8 @@ done
 
 # --- VM DETECTION ---
 echo ""
-read -p "Is this a VM environment? (y/n): " IS_VM
+unset IS_VM
+read -r -p "Is this a VM environment? (y/n): " IS_VM
 
 # --- LUKS PASSWORD ---
 box "2" "CONFIGURATION WIZARD - Disk Encryption" "$YELLOW"
@@ -396,11 +405,12 @@ echo ""
 center "Set DISK ENCRYPTION Password (LUKS2):" "$RED"
 center "⚠ This encrypts your entire system - DO NOT FORGET!" "$YELLOW"
 echo ""
+unset LUKS_PASS LUKS_PASS2
 while true; do
-    read -s -p "  Password: " LUKS_PASS
+    read -r -s -p "  Password: " LUKS_PASS
     echo ""
     if validate_password_strength "$LUKS_PASS"; then
-        read -s -p "  Confirm:  " LUKS_PASS2
+        read -r -s -p "  Confirm:  " LUKS_PASS2
         echo ""
         if [ "$LUKS_PASS" == "$LUKS_PASS2" ]; then
             echo "${GREEN}✓ Encryption password set${NC}"
@@ -430,7 +440,8 @@ echo ""
 line
 echo ""
 center "${BOLD}${RED}Type 'YES' (all caps) to proceed with installation:${NC}" "$RED"
-read -p "  > " CONFIRM
+unset CONFIRM
+read -r -p "  > " CONFIRM
 
 if [ "$CONFIRM" != "YES" ]; then
     echo ""
@@ -518,7 +529,13 @@ if kill -0 $DOWNLOAD_PID 2>/dev/null; then
         sleep 1
     done
     wait $DOWNLOAD_PID
-    echo " ${GREEN}✓${NC}"
+    DOWNLOAD_EXIT=$?
+    if [ $DOWNLOAD_EXIT -eq 0 ]; then
+        echo " ${GREEN}✓${NC}"
+    else
+        echo " ${RED}✗${NC}"
+        echo "${YELLOW}⚠ Package download failed, but continuing (will retry during pacstrap)${NC}"
+    fi
 else
     echo "${GREEN}✓ Packages already downloaded${NC}"
 fi
