@@ -287,7 +287,9 @@ run_task_cinema() {
     eval "$command" >> "$LOG" 2>&1 &
     local pid=$!
 
-local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
+    local delay=0.1
+    local quote_delay=0
+    local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
     local quote_index=0
 
     tput civis
@@ -296,7 +298,7 @@ local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
     while kill -0 $pid 2>/dev/null;
  do
         local temp=${spinstr#?}
-        printf " [${CYAN}%c${NC}] " "$spinstr"
+        printf " [${CYAN}%s${NC}] " "${spinstr:0:1}"
         local spinstr=$temp${spinstr%"$temp"}
 
         if [ $quote_delay -eq 0 ]; then
@@ -335,13 +337,14 @@ run_task() {
 
     eval "$command" >> "$LOG" 2>&1 &
     local pid=$!
-local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
+    local delay=0.1
+    local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
 
     tput civis
     while kill -0 $pid 2>/dev/null;
  do
         local temp=${spinstr#?}
-        printf " [${CYAN}%c${NC}]" "$spinstr"
+        printf " [${CYAN}%s${NC}]" "${spinstr:0:1}"
         local spinstr=$temp${spinstr%"$temp"}
         sleep $delay
         printf "\b\b\b\b"
@@ -741,7 +744,7 @@ if kill -0 $DOWNLOAD_PID 2>/dev/null;
     tput civis
     while kill -0 $DOWNLOAD_PID 2>/dev/null; do
         local temp=${spinstr#?}
-        printf " [${CYAN}%c${NC}]" "$spinstr"
+        printf " [${CYAN}%s${NC}]" "${spinstr:0:1}"
         spinstr=$temp${spinstr%"$temp"}
         sleep 0.1
         printf "\b\b\b\b"
