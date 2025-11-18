@@ -289,7 +289,7 @@ run_task_cinema() {
 
     local delay=0.1
     local quote_delay=0
-    local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
+    local spinstr='|/-\'
     local quote_index=0
 
     tput civis
@@ -298,7 +298,7 @@ run_task_cinema() {
     while kill -0 $pid 2>/dev/null;
  do
         local temp=${spinstr#?}
-        printf " [${CYAN}%s${NC}] " "${spinstr:0:1}"
+        printf " [${CYAN}%c${NC}] " "$spinstr"
         local spinstr=$temp${spinstr%"$temp"}
 
         if [ $quote_delay -eq 0 ]; then
@@ -338,13 +338,13 @@ run_task() {
     eval "$command" >> "$LOG" 2>&1 &
     local pid=$!
     local delay=0.1
-    local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
+    local spinstr='|/-\'
 
     tput civis
     while kill -0 $pid 2>/dev/null;
  do
         local temp=${spinstr#?}
-        printf " [${CYAN}%s${NC}]" "${spinstr:0:1}"
+        printf " [${CYAN}%c${NC}]" "$spinstr"
         local spinstr=$temp${spinstr%"$temp"}
         sleep $delay
         printf "\b\b\b\b"
@@ -740,22 +740,17 @@ echo ""
 if kill -0 $DOWNLOAD_PID 2>/dev/null;
  then
     printf "  ${WHITE}Waiting for package downloads...${NC}"
-    local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
-    tput civis
-    while kill -0 $DOWNLOAD_PID 2>/dev/null; do
-        local temp=${spinstr#?}
-        printf " [${CYAN}%s${NC}]" "${spinstr:0:1}"
-        spinstr=$temp${spinstr%"$temp"}
-        sleep 0.1
-        printf "\b\b\b\b"
+    while kill -0 $DOWNLOAD_PID 2>/dev/null;
+ do
+        printf "."
+        sleep 1
     done
-    tput cnorm
     wait $DOWNLOAD_PID
     DOWNLOAD_EXIT=$?
     if [ $DOWNLOAD_EXIT -eq 0 ]; then
-        printf " [${GREEN}✓${NC}]\n"
+        echo " ${GREEN}✓${NC}"
     else
-        printf " [${RED}✗${NC}]\n"
+        echo " ${RED}✗${NC}"
         echo "${YELLOW}⚠ Package download failed, but continuing (will retry during pacstrap)${NC}"
     fi
 else
