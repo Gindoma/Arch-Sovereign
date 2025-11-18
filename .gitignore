@@ -1,0 +1,16 @@
+# Ignore everything by default
+*
+
+# --- EXCEPTIONS ---
+# Allow the .gitignore file itself to be tracked
+!.gitignore
+
+# Allow the main README file
+!README.md
+
+# Allow the 'install_script' directory, but ignore its contents by default
+!install_script/
+install_script/*
+
+# Specifically allow the v45 installer script
+!install_script/install-v45.sh
