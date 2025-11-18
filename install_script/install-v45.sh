@@ -287,9 +287,7 @@ run_task_cinema() {
     eval "$command" >> "$LOG" 2>&1 &
     local pid=$!
 
-    local delay=0.1
-    local quote_delay=0
-    local spinstr='|/-\'
+local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
     local quote_index=0
 
     tput civis
@@ -337,8 +335,7 @@ run_task() {
 
     eval "$command" >> "$LOG" 2>&1 &
     local pid=$!
-    local delay=0.1
-    local spinstr='|/-\'
+local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
 
     tput civis
     while kill -0 $pid 2>/dev/null;
@@ -740,7 +737,7 @@ echo ""
 if kill -0 $DOWNLOAD_PID 2>/dev/null;
  then
     printf "  ${WHITE}Waiting for package downloads...${NC}"
-    local spinstr='|/-\'
+    local spinstr='⣾⣽⣻⢿⡿⣟⣯⣷'
     tput civis
     while kill -0 $DOWNLOAD_PID 2>/dev/null; do
         local temp=${spinstr#?}
