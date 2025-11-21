@@ -73,6 +73,7 @@ PACMAN_PACKAGES=(
   ttf-jetbrains-mono-nerd
 
   # System & Desktop
+  pacman-contrib
   btop
   hyprland
   fastfetch
@@ -93,6 +94,7 @@ PACMAN_PACKAGES=(
   restic
   flatpak
   nmap
+  blueman
   bluez
   bluez-utils
   bluetui
@@ -132,7 +134,6 @@ PACMAN_PACKAGES=(
   smartmontools
   ncdu
   rsync
-  htop
   lsof
   strace
   sysstat
@@ -164,6 +165,7 @@ echo "-> Installation AUR-Pakete..."
 
 AUR_PACKAGES=(
   netavark
+  pacman-contrib
   gtk4
   bind
   starship
